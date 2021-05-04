@@ -8,6 +8,14 @@
  */
 #define BUFFER_SIZE 8 * 1024 * 1024
 
+#ifndef NR_DPUS
+#define NR_DPUS 1
+#endif
+
+#ifndef NR_TASKLETS
+#define NR_TASKLETS 1
+#endif
+
 typedef struct
 {
     const char *name;

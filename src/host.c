@@ -90,7 +90,7 @@ void prepare_dpu()
 {
     struct dpu_set_t dpu_set, dpu;
 
-    DPU_ASSERT(dpu_alloc(1, NULL, &dpu_set));
+    DPU_ASSERT(dpu_alloc(NR_DPUS, NULL, &dpu_set));
 
     if (chosen_plugin == 0)
     {
@@ -106,9 +106,36 @@ void prepare_dpu()
     DPU_ASSERT(dpu_copy_to(dpu_set, "buffer", 0, input_buffer, per_dpu_memory_to_alloc));
     DPU_ASSERT(dpu_launch(dpu_set, DPU_SYNCHRONOUS));
 
-    DPU_FOREACH(dpu_set, dpu)
+    // DPU_FOREACH(dpu_set, dpu)
+    // {
+    //     DPU_ASSERT(dpu_log_read(dpu, stdout));
+    // }
+
+    dpu_results_t results[NR_DPUS];
+    uint32_t each_dpu;
+    uint64_t bytes_read = 0, cycles = 0;
+    DPU_FOREACH(dpu_set, dpu, each_dpu)
     {
-        DPU_ASSERT(dpu_log_read(dpu, stdout));
+        DPU_ASSERT(dpu_prepare_xfer(dpu, &results[each_dpu]));
+    }
+    DPU_ASSERT(dpu_push_xfer(dpu_set, DPU_XFER_FROM_DPU, "results", 0, sizeof(dpu_results_t), DPU_XFER_DEFAULT));
+
+    DPU_FOREACH(dpu_set, dpu, each_dpu)
+    {
+        // retrieve tasklet results
+        for (unsigned int each_tasklet = 0; each_tasklet < NR_TASKLETS; each_tasklet++)
+        {
+            result_t *result = &results[each_dpu].tasklet_result[each_tasklet];
+
+            bytes_read += result->bytes_read;
+            cycles += result->cycles;
+        }
+
+        bytes_read /= NR_TASKLETS;
+        cycles /= NR_TASKLETS;
+
+        printf("Total bytes read        = %lu\n", bytes_read);
+        printf("Average cycles per DPU  = %lu cycles\n", cycles);
     }
 
     DPU_ASSERT(dpu_free(dpu_set));
