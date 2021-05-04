@@ -1,2 +1,7 @@
 .vscode
 *.o
+
+# ignore executables
+host
+random_read
+sequential_read

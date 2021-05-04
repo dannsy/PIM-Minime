@@ -11,17 +11,26 @@
 
 #include "common.h"
 
-#define SEQ_BINARY "sequential_read"
-#define RAND_BINARY "random_read"
+#define SEQ_BINARY "./dpu/sequential_read"
+#define RAND_BINARY "./dpu/random_read"
+
+memory_bench_plugin_t plugins[] = {
+    {"sequential_read"},
+    {"random_read"},
+};
+
+unsigned nb_plugins = sizeof(plugins) / sizeof(memory_bench_plugin_t);
 
 int chosen_plugin = -1;
 
 #define DEFAULT_BENCH_TIME (10LL)                             // In seconds
 #define DEFAULT_MEMORY_BENCH_SIZE_TO_BENCH (32 * 1024 * 1024) // In bytes
 
+uint32_t per_dpu_memory_to_alloc = 0;
+
 uint64_t bench_time = DEFAULT_BENCH_TIME;
 
-// Each element of array is 1 byte
+// Each element of array is 4 bytes
 static uint32_t input_buffer[BUFFER_SIZE];
 
 void seq_init()
@@ -81,8 +90,32 @@ void rand_init()
     free(rand_array);
 }
 
-void start_dpu()
+void prepare_dpu()
 {
+    struct dpu_set_t dpu_set, dpu;
+
+    DPU_ASSERT(dpu_alloc(1, NULL, &dpu_set));
+
+    if (chosen_plugin == 0)
+    {
+        DPU_ASSERT(dpu_load(dpu_set, SEQ_BINARY, NULL));
+        seq_init();
+    }
+    else
+    {
+        DPU_ASSERT(dpu_load(dpu_set, RAND_BINARY, NULL));
+        rand_init();
+    }
+
+    DPU_ASSERT(dpu_copy_to(dpu_set, "buffer", 0, input_buffer, per_dpu_memory_to_alloc));
+    DPU_ASSERT(dpu_launch(dpu_set, DPU_SYNCHRONOUS));
+
+    DPU_FOREACH(dpu_set, dpu)
+    {
+        DPU_ASSERT(dpu_log_read(dpu, stdout));
+    }
+
+    DPU_ASSERT(dpu_free(dpu_set));
 }
 
 static uint64_t parse_size(char *size)
@@ -105,30 +138,25 @@ static uint64_t parse_size(char *size)
 
 static void usage(char *app_name)
 {
-    // unsigned long nb_plugins = sizeof(plugins) / sizeof(memory_bench_plugin_t);
-
     fprintf(stderr, "Usage: %s -t <plugin number> [ -l <size>[K|M]] [-T <time in seconds>]\n", app_name);
     fprintf(stderr, "\t-t: plugin number. Available plugins:\n");
-    // int i = 0;
-    // for (i = 0; i < nb_plugins; i++)
-    // {
-    //     printf("\t\t%d - %s\n", i, plugins[i].name);
-    // }
+    for (int i = 0; i < nb_plugins; i++)
+    {
+        printf("\t\t%d - %s\n", i, plugins[i].name);
+    }
 
     fprintf(stderr, "\t-d: use DPU\n");
-    fprintf(stderr, "\t-l: memory size to benchmark per DPU (Maximum 64MB)\n");
+    fprintf(stderr, "\t-g: memory size to benchmark per DPU (Maximum 32MB)\n");
     fprintf(stderr, "\t-T: manually specify the benchmark duration (in seconds)\n");
     fprintf(stderr, "\t-h: display usage\n");
 }
 
 int main(int argc, char **argv)
 {
-    struct dpu_set_t dpu_set, dpu;
-    uint32_t per_dpu_memory_to_alloc = 0;
     bool use_dpu = false;
 
     int opt;
-    char const options[] = "hdt:l:T:";
+    char const options[] = "hdt:g:T:";
     while ((opt = getopt(argc, argv, options)) != -1)
     {
         switch (opt)
@@ -139,8 +167,6 @@ int main(int argc, char **argv)
 
         case 't':
             chosen_plugin = atoi(optarg);
-            // unsigned long nb_plugins = sizeof(plugins) / sizeof(memory_bench_plugin_t);
-            unsigned long nb_plugins = 2;
             if (chosen_plugin < 0 || chosen_plugin >= nb_plugins)
             {
                 fprintf(stderr, "%d is not a valid plugin number\n", chosen_plugin);
@@ -148,7 +174,7 @@ int main(int argc, char **argv)
             }
             break;
 
-        case 'l':
+        case 'g':
             per_dpu_memory_to_alloc = parse_size(optarg);
             break;
 
@@ -179,24 +205,15 @@ int main(int argc, char **argv)
     }
 
     printf("Bench parameters\n");
-    // printf("\t* Required %d DPUs\n", NR_DPUS);
-    // printf("\t* Required %d tasklets\n", NR_TASKLETS);
+    printf("\t* Use DPU: %d\n", use_dpu);
+    printf("\t* Chosen benchmark: %s\n", plugins[chosen_plugin].name);
     printf("\t* Memory size to bench per DPU: %u bytes\n", (unsigned)per_dpu_memory_to_alloc);
     printf("\t* Benchmark time: %lus\n", (unsigned long)bench_time);
 
-    DPU_ASSERT(dpu_alloc(1, NULL, &dpu_set));
-    DPU_ASSERT(dpu_load(dpu_set, RAND_BINARY, NULL));
-
-    rand_init();
-    DPU_ASSERT(dpu_copy_to(dpu_set, "buffer", 0, input_buffer, per_dpu_memory_to_alloc));
-    DPU_ASSERT(dpu_launch(dpu_set, DPU_SYNCHRONOUS));
-
-    DPU_FOREACH(dpu_set, dpu)
+    if (use_dpu)
     {
-        DPU_ASSERT(dpu_log_read(dpu, stdout));
+        prepare_dpu();
     }
-
-    DPU_ASSERT(dpu_free(dpu_set));
 
     return EXIT_SUCCESS;
 }
