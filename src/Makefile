@@ -21,9 +21,11 @@ $(ODIR)/%.o: %.c  $(DEPS)
 
 host: $(OBJ)
 	$(CC) -o $@ $^ $(CFLAGS) $(DPU_OPTS)
+	NR_DPUS=$(NR_DPUS) NR_TASKLETS=$(NR_TASKLETS) \
 	$(MAKE) -C dpu
 
 .PHONY: clean
 
 clean:
-	rm -f $(ODIR)/*.o
+	rm -f $(ODIR)/*.o host
+	$(MAKE) -C dpu clean

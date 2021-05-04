@@ -75,15 +75,11 @@ void rand_init()
     /* Sort rand_array elements in increasing j order */
     qsort(&rand_array[1], BUFFER_SIZE - 1, sizeof(*rand_array), compar);
 
-    // uint64_t *addr = (uint64_t *)memory_to_access;
     int index = 0;
     for (i = 1; i < BUFFER_SIZE; i++)
     {
         input_buffer[index] = rand_array[i].i;
         index = input_buffer[index];
-
-        // *addr = (uint64_t)&memory_to_access[rand_array[i + 1].i];
-        // addr = (uint64_t *)*addr;
     }
     input_buffer[index] = 0;
 
