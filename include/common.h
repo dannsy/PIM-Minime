@@ -13,4 +13,15 @@ typedef struct
     const char *name;
 } memory_bench_plugin_t;
 
+typedef struct
+{
+    uint64_t bytes_read;
+    uint64_t cycles;
+} result_t;
+
+typedef struct
+{
+    result_t tasklet_result[NR_TASKLETS];
+} dpu_results_t;
+
 #endif // COMMON_H_

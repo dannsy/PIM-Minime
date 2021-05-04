@@ -1,6 +1,6 @@
 IDIR=../../include
 CC=dpu-upmem-dpurte-clang
-CFLAGS=-DNR_DPUS=$(NR_DPUS) -DNR_TASKLETS=$(NR_TASKLETS) -I$(IDIR)
+CFLAGS=-DNR_DPUS=$(NR_DPUS) -DNR_TASKLETS=$(NR_TASKLETS) -I$(IDIR) -O0
 
 .PHONY: clean
 

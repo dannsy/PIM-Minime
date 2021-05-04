@@ -37,7 +37,7 @@ void seq_init()
 {
     for (int i = 0; i < BUFFER_SIZE; i++)
     {
-        input_buffer[i] = (uint32_t)0;
+        input_buffer[i] = (uint32_t)1;
     }
 }
 
@@ -196,7 +196,7 @@ int main(int argc, char **argv)
     }
     else if (per_dpu_memory_to_alloc <= 0 || per_dpu_memory_to_alloc > DEFAULT_MEMORY_BENCH_SIZE_TO_BENCH)
     {
-        fprintf(stderr, "Memory to allocate per DPU invalid, falling back to default memory size of 32MB");
+        fprintf(stderr, "Memory to allocate per DPU invalid, falling back to default memory size of 32MB\n");
         per_dpu_memory_to_alloc = DEFAULT_MEMORY_BENCH_SIZE_TO_BENCH;
     }
 
@@ -209,6 +209,10 @@ int main(int argc, char **argv)
     if (use_dpu)
     {
         prepare_dpu();
+    }
+    else
+    {
+        // TODO: add CPU only code here
     }
 
     return EXIT_SUCCESS;
