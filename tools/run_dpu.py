@@ -21,8 +21,8 @@ def make(num_dpus=1, num_tasklets=1):
     subprocess.run(command, shell=True)
 
 
-def benchmark(mode, total_mem="32M"):
-    command = [f"./host -d -t {mode} -g {total_mem}"]
+def benchmark(mode, total_mem="32M", bench_time=10):
+    command = [f"./host -d -t {mode} -g {total_mem} -T {bench_time}"]
     subprocess.run(command, shell=True)
 
 
@@ -37,6 +37,7 @@ if __name__ == "__main__":
     num_dpus = int(input("Number of DPUs: "))
     num_tasklets = int(input("Number of tasklets: "))
     mode = input("Choose mode (0: sequential read, 1: random read): ")
+    bench_time = int(input("Benchmark time: "))
 
     # Calling make clean and make with the right number of DPUs and tasklets
     make(num_dpus, num_tasklets)
@@ -45,6 +46,6 @@ if __name__ == "__main__":
     end_stars = "*" * 32
     print(f"\n{start_stars} Starting benchmark for Minime {start_stars}\n")
 
-    benchmark(mode)
+    benchmark(mode, bench_time=bench_time)
 
     print(f"\n{end_stars} Done benchmark for Minime {end_stars}")

@@ -112,7 +112,7 @@ void prepare_dpu()
     dpu_input_t dpu_input;
     dpu_input.total_buffer_size = buffer_size;
     dpu_input.tasklet_buffer_size = buffer_size / NR_TASKLETS;
-    dpu_input.max_cycles = (uint64_t)0;
+    dpu_input.max_cycles = bench_time;
     for (int i = 0; i < NR_TASKLETS; i++)
     {
         dpu_input.tasklet_start_index[i] = i * dpu_input.tasklet_buffer_size;
@@ -163,9 +163,12 @@ void prepare_dpu()
 
         cycles /= NR_TASKLETS;
 
-        printf("Total bytes read: %lu bytes\n", bytes_read);
-        printf("Average cycles per DPU: %lu cycles\n", cycles);
-        printf("Time taken to run benchmark: %f seconds\n", TIME_DIFFERENCE(start, end));
+        float mbytes_read = bytes_read / 1024. / 1024.;
+        float time_diff = TIME_DIFFERENCE(start, end);
+        printf("\tTotal bytes read: %lu bytes (%.2f MB)\n", bytes_read, mbytes_read);
+        printf("\tAverage cycles per DPU: %lu cycles\n", cycles);
+        printf("\tTime taken to run benchmark: %f seconds\n", time_diff);
+        printf("\tThroughput: %.2f MB/s\n", mbytes_read / time_diff);
     }
 
     DPU_ASSERT(dpu_free(dpu_set));

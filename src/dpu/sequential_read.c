@@ -22,6 +22,7 @@ int main()
     uint32_t total_buffer_size = input.total_buffer_size;
     // This will only be *entirely accurate* if NR_TASKLETS is a power of 2
     uint32_t buffer_size_per_tasket = input.tasklet_buffer_size;
+    uint64_t max_cycles = input.max_cycles * CLOCKS_PER_SEC;
 
     if (tasklet_id == 0)
     {
@@ -29,6 +30,7 @@ int main()
     }
 
     uint32_t read_val = 0, nb_iterations = 0;
+    uint64_t cycles;
     while (1)
     {
         uint32_t buffer_i = input.tasklet_start_index[tasklet_id];
@@ -51,7 +53,12 @@ int main()
             }
         }
         nb_iterations++;
-        break;
+
+        cycles = perfcounter_get();
+        if (cycles > max_cycles)
+        {
+            break;
+        }
     }
 
     result->cycles = perfcounter_get();
