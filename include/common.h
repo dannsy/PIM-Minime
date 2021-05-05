@@ -26,7 +26,10 @@ typedef struct
  */
 typedef struct
 {
-    uint32_t buffer_size;
+    uint32_t total_buffer_size;
+    uint32_t tasklet_buffer_size;
+    uint32_t tasklet_start_index[NR_TASKLETS];
+    uint64_t max_cycles;
 } dpu_input_t;
 
 /*

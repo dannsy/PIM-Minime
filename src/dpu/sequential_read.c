@@ -19,9 +19,9 @@ int main()
     uint32_t *cache = caches[tasklet_id];
     tasklet_output_t *result = &results.tasklet_result[tasklet_id];
 
-    uint32_t total_buffer_size = input.buffer_size;
+    uint32_t total_buffer_size = input.total_buffer_size;
     // This will only be *entirely accurate* if NR_TASKLETS is a power of 2
-    uint32_t buffer_size_per_tasket = total_buffer_size / NR_TASKLETS;
+    uint32_t buffer_size_per_tasket = input.tasklet_buffer_size;
 
     if (tasklet_id == 0)
     {
@@ -29,9 +29,9 @@ int main()
     }
 
     uint32_t read_val = 0, nb_iterations = 0;
-    uint32_t buffer_i = tasklet_id * buffer_size_per_tasket;
     while (1)
     {
+        uint32_t buffer_i = input.tasklet_start_index[tasklet_id];
         for (; buffer_i < buffer_size_per_tasket * (tasklet_id + 1); buffer_i += BLOCK_SIZE)
         {
             // read MRAM buffer to WRAM cache
@@ -53,8 +53,6 @@ int main()
         nb_iterations++;
         break;
     }
-
-    printf("Buf size / tasklet: %u, Sum is: %u\n", buffer_size_per_tasket, read_val);
 
     result->cycles = perfcounter_get();
     result->bytes_read = nb_iterations * buffer_size_per_tasket * sizeof(uint32_t);

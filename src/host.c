@@ -8,11 +8,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
+#include <time.h>
 
 #include "common.h"
 
 #define SEQ_BINARY "./dpu/sequential_read"
 #define RAND_BINARY "./dpu/random_read"
+
+#define TIME_NOW(_t) (clock_gettime(CLOCK_MONOTONIC, (_t)))
+#define TIME_DIFFERENCE(_start, _end)       \
+    ((_end.tv_sec + _end.tv_nsec / 1.0e9) - \
+     (_start.tv_sec + _start.tv_nsec / 1.0e9))
 
 memory_bench_plugin_t plugins[] = {
     {"sequential_read"},
@@ -60,7 +66,7 @@ static int compar(const void *a1, const void *a2)
     return a->j - b->j;
 }
 
-void rand_init()
+void rand_init(dpu_input_t *dpu_input)
 {
     int i;
     unsigned int seed = 1;
@@ -77,23 +83,40 @@ void rand_init()
     qsort(&rand_array[1], buffer_size - 1, sizeof(*rand_array), compar);
 
     int index = 0;
+    int j = 1;
     for (i = 1; i < buffer_size; i++)
     {
         input_buffer[index] = rand_array[i].i;
         index = input_buffer[index];
+
+        if (i % dpu_input->tasklet_buffer_size == 0)
+        {
+            dpu_input->tasklet_start_index[j] = index;
+            j++;
+        }
     }
     input_buffer[index] = 0;
 
     free(rand_array);
 }
 
-// TODO: Find way to assign tasklets to specific part of buffer for rand
 // TODO: Calculate time spent doing benchmarking
+// TODO: Let benchmark run until time limit reached instead of only doing one loop
 void prepare_dpu()
 {
     struct dpu_set_t dpu_set, dpu;
+    struct timespec start, end;
 
     DPU_ASSERT(dpu_alloc(NR_DPUS, NULL, &dpu_set));
+
+    dpu_input_t dpu_input;
+    dpu_input.total_buffer_size = buffer_size;
+    dpu_input.tasklet_buffer_size = buffer_size / NR_TASKLETS;
+    dpu_input.max_cycles = (uint64_t)0;
+    for (int i = 0; i < NR_TASKLETS; i++)
+    {
+        dpu_input.tasklet_start_index[i] = i * dpu_input.tasklet_buffer_size;
+    }
 
     if (chosen_plugin == 0)
     {
@@ -103,20 +126,20 @@ void prepare_dpu()
     else
     {
         DPU_ASSERT(dpu_load(dpu_set, RAND_BINARY, NULL));
-        rand_init();
+        rand_init(&dpu_input);
     }
-
-    dpu_input_t dpu_input;
-    dpu_input.buffer_size = buffer_size;
 
     DPU_ASSERT(dpu_copy_to(dpu_set, "buffer", 0, input_buffer, per_dpu_memory_to_alloc));
     DPU_ASSERT(dpu_copy_to(dpu_set, "input", 0, &dpu_input, sizeof(dpu_input_t)));
-    DPU_ASSERT(dpu_launch(dpu_set, DPU_SYNCHRONOUS));
 
-    DPU_FOREACH(dpu_set, dpu)
-    {
-        DPU_ASSERT(dpu_log_read(dpu, stdout));
-    }
+    TIME_NOW(&start);
+    DPU_ASSERT(dpu_launch(dpu_set, DPU_SYNCHRONOUS));
+    TIME_NOW(&end);
+
+    // DPU_FOREACH(dpu_set, dpu)
+    // {
+    //     DPU_ASSERT(dpu_log_read(dpu, stdout));
+    // }
 
     dpu_output_t results[NR_DPUS];
     uint32_t each_dpu;
@@ -140,8 +163,9 @@ void prepare_dpu()
 
         cycles /= NR_TASKLETS;
 
-        printf("Total bytes read        = %lu\n", bytes_read);
-        printf("Average cycles per DPU  = %lu cycles\n", cycles);
+        printf("Total bytes read: %lu bytes\n", bytes_read);
+        printf("Average cycles per DPU: %lu cycles\n", cycles);
+        printf("Time taken to run benchmark: %f seconds\n", TIME_DIFFERENCE(start, end));
     }
 
     DPU_ASSERT(dpu_free(dpu_set));

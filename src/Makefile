@@ -13,7 +13,7 @@ OBJ=$(patsubst %,$(ODIR)/%,$(_OBJ))
 
 # Default
 NR_DPUS ?= 1
-NR_TASKLETS ?= 16
+NR_TASKLETS ?= 5
 CFLAGS+=-DNR_DPUS=$(NR_DPUS) -DNR_TASKLETS=$(NR_TASKLETS) -DHOST=1
 
 $(ODIR)/%.o: %.c  $(DEPS)
