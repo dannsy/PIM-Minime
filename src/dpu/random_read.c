@@ -5,13 +5,15 @@
 
 #include "common.h"
 
-__mram_noinit uint32_t buffer[BUFFER_SIZE];
-__host dpu_results_t results;
+__mram_noinit uint32_t buffer[MAX_BUFFER_SIZE];
+__host dpu_input_t input;
+__host dpu_output_t results;
 
 int main()
 {
     uint32_t tasklet_id = me();
-    result_t *result = &results.tasklet_result[tasklet_id];
+    tasklet_output_t *result = &results.tasklet_result[tasklet_id];
+    uint32_t buffer_size = input.buffer_size;
 
     if (tasklet_id == 0)
     {
@@ -22,7 +24,7 @@ int main()
     while (1)
     {
         // unroll loop to have greater ratio of load instructions to branch instructions
-        for (int i = 0; i < BUFFER_SIZE; i += 8)
+        for (int i = 0; i < buffer_size; i += 8)
         {
             index = buffer[index];
             index = buffer[index];
@@ -38,6 +40,6 @@ int main()
     }
 
     result->cycles = perfcounter_get();
-    result->bytes_read = nb_iterations * BUFFER_SIZE * sizeof(uint32_t);
+    result->bytes_read = nb_iterations * buffer_size * sizeof(uint32_t);
     return 0;
 }

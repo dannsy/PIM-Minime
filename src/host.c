@@ -27,15 +27,16 @@ int chosen_plugin = -1;
 #define DEFAULT_MEMORY_BENCH_SIZE_TO_BENCH (32 * 1024 * 1024) // In bytes
 
 uint32_t per_dpu_memory_to_alloc = 0;
+uint32_t buffer_size = 0;
 
 uint64_t bench_time = DEFAULT_BENCH_TIME;
 
 // Each element of array is 4 bytes
-static uint32_t input_buffer[BUFFER_SIZE];
+static uint32_t input_buffer[MAX_BUFFER_SIZE];
 
 void seq_init()
 {
-    for (int i = 0; i < BUFFER_SIZE; i++)
+    for (int i = 0; i < buffer_size; i++)
     {
         input_buffer[i] = (uint32_t)1;
     }
@@ -64,19 +65,19 @@ void rand_init()
     int i;
     unsigned int seed = 1;
 
-    struct ij *rand_array = malloc(sizeof(struct ij) * BUFFER_SIZE);
+    struct ij *rand_array = malloc(sizeof(struct ij) * buffer_size);
 
-    for (i = 1; i < BUFFER_SIZE; i++)
+    for (i = 1; i < buffer_size; i++)
     {
         rand_array[i].i = i;
         /* For all cores and their thread, generate the same sequence of random j */
         rand_array[i].j = rand_r(&seed);
     }
     /* Sort rand_array elements in increasing j order */
-    qsort(&rand_array[1], BUFFER_SIZE - 1, sizeof(*rand_array), compar);
+    qsort(&rand_array[1], buffer_size - 1, sizeof(*rand_array), compar);
 
     int index = 0;
-    for (i = 1; i < BUFFER_SIZE; i++)
+    for (i = 1; i < buffer_size; i++)
     {
         input_buffer[index] = rand_array[i].i;
         index = input_buffer[index];
@@ -86,6 +87,8 @@ void rand_init()
     free(rand_array);
 }
 
+// TODO: Find way to assign tasklets to specific part of buffer for rand
+// TODO: Calculate time spent doing benchmarking
 void prepare_dpu()
 {
     struct dpu_set_t dpu_set, dpu;
@@ -103,35 +106,38 @@ void prepare_dpu()
         rand_init();
     }
 
+    dpu_input_t dpu_input;
+    dpu_input.buffer_size = buffer_size;
+
     DPU_ASSERT(dpu_copy_to(dpu_set, "buffer", 0, input_buffer, per_dpu_memory_to_alloc));
+    DPU_ASSERT(dpu_copy_to(dpu_set, "input", 0, &dpu_input, sizeof(dpu_input_t)));
     DPU_ASSERT(dpu_launch(dpu_set, DPU_SYNCHRONOUS));
 
-    // DPU_FOREACH(dpu_set, dpu)
-    // {
-    //     DPU_ASSERT(dpu_log_read(dpu, stdout));
-    // }
+    DPU_FOREACH(dpu_set, dpu)
+    {
+        DPU_ASSERT(dpu_log_read(dpu, stdout));
+    }
 
-    dpu_results_t results[NR_DPUS];
+    dpu_output_t results[NR_DPUS];
     uint32_t each_dpu;
     uint64_t bytes_read = 0, cycles = 0;
     DPU_FOREACH(dpu_set, dpu, each_dpu)
     {
         DPU_ASSERT(dpu_prepare_xfer(dpu, &results[each_dpu]));
     }
-    DPU_ASSERT(dpu_push_xfer(dpu_set, DPU_XFER_FROM_DPU, "results", 0, sizeof(dpu_results_t), DPU_XFER_DEFAULT));
+    DPU_ASSERT(dpu_push_xfer(dpu_set, DPU_XFER_FROM_DPU, "results", 0, sizeof(dpu_output_t), DPU_XFER_DEFAULT));
 
     DPU_FOREACH(dpu_set, dpu, each_dpu)
     {
         // retrieve tasklet results
         for (unsigned int each_tasklet = 0; each_tasklet < NR_TASKLETS; each_tasklet++)
         {
-            result_t *result = &results[each_dpu].tasklet_result[each_tasklet];
+            tasklet_output_t *result = &results[each_dpu].tasklet_result[each_tasklet];
 
             bytes_read += result->bytes_read;
             cycles += result->cycles;
         }
 
-        bytes_read /= NR_TASKLETS;
         cycles /= NR_TASKLETS;
 
         printf("Total bytes read        = %lu\n", bytes_read);
@@ -226,11 +232,13 @@ int main(int argc, char **argv)
         fprintf(stderr, "Memory to allocate per DPU invalid, falling back to default memory size of 32MB\n");
         per_dpu_memory_to_alloc = DEFAULT_MEMORY_BENCH_SIZE_TO_BENCH;
     }
+    buffer_size = per_dpu_memory_to_alloc / sizeof(uint32_t);
 
     printf("Bench parameters\n");
     printf("\t* Use DPU: %d\n", use_dpu);
     printf("\t* Chosen benchmark: %s\n", plugins[chosen_plugin].name);
-    printf("\t* Memory size to bench per DPU: %u bytes\n", (unsigned)per_dpu_memory_to_alloc);
+    printf("\t* Memory size to bench per DPU: %u bytes\n", per_dpu_memory_to_alloc);
+    printf("\t* Buffer size: %u\n", buffer_size);
     printf("\t* Benchmark time: %lus\n", (unsigned long)bench_time);
 
     if (use_dpu)
