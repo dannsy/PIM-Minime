@@ -12,42 +12,54 @@
 
 #include "common.h"
 
+// MACROS containing path to DPU executables
 #define SEQ_BINARY "./dpu/sequential_read"
 #define RAND_BINARY "./dpu/random_read"
 
+// MACROS for helping with getting the execution time
 #define TIME_NOW(_t) (clock_gettime(CLOCK_MONOTONIC, (_t)))
 #define TIME_DIFFERENCE(_start, _end)       \
     ((_end.tv_sec + _end.tv_nsec / 1.0e9) - \
      (_start.tv_sec + _start.tv_nsec / 1.0e9))
 
+#define DEFAULT_BENCH_TIME (10LL)                             // In seconds
+#define DEFAULT_MEMORY_BENCH_SIZE_TO_BENCH (32 * 1024 * 1024) // In bytes
+
+// Benchmark options constants
 memory_bench_plugin_t plugins[] = {
     {"sequential_read"},
     {"random_read"},
 };
-
 unsigned nb_plugins = sizeof(plugins) / sizeof(memory_bench_plugin_t);
 
-int chosen_plugin = -1;
-
-#define DEFAULT_BENCH_TIME (10LL)                             // In seconds
-#define DEFAULT_MEMORY_BENCH_SIZE_TO_BENCH (32 * 1024 * 1024) // In bytes
-
-uint32_t per_dpu_memory_to_alloc = 0;
-uint32_t buffer_size = 0;
-
-uint64_t bench_time = DEFAULT_BENCH_TIME;
-
-// Each element of array is 4 bytes
+// Buffer to copy into DPUs, each element is 4 bytes
 static uint32_t input_buffer[MAX_BUFFER_SIZE];
 
-void seq_init()
+/**
+ * DPU runtime struct containing execution time for various operations
+ */
+typedef struct dpu_runtime
+{
+    float copy_in_time;
+    float benchmark_time;
+    float copy_out_time;
+} dpu_runtime;
+
+/**
+ * Initialize the buffer for the sequential read plugin
+ * Fill in all buffer elements with 0s
+ */
+void seq_init(uint32_t buffer_size)
 {
     for (int i = 0; i < buffer_size; i++)
     {
-        input_buffer[i] = (uint32_t)1;
+        input_buffer[i] = (uint32_t)0;
     }
 }
 
+/**
+ * Helper struct for randomly sorting the buffer for random read
+ */
 struct ij
 {
     int i;
@@ -55,7 +67,7 @@ struct ij
 };
 
 /*
- * Compare function for qsort.
+ * Compare function for qsort
  * Sorts rand_array elements in increasing j order
  */
 static int compar(const void *a1, const void *a2)
@@ -66,7 +78,14 @@ static int compar(const void *a1, const void *a2)
     return a->j - b->j;
 }
 
-void rand_init(dpu_input_t *dpu_input)
+/**
+ * Initialize the buffer for the random read plugin
+ * Fill in buffer with pointer chasing elements
+ * Each element should only be visited once for all tasklets combined
+ * 
+ * @param[in] dpu_input - Inputs that will be copied to the DPUs. Fill in start_index array during pointer chasing
+ */
+void rand_init(uint32_t buffer_size, dpu_input_t *dpu_input)
 {
     int i;
     unsigned int seed = 1;
@@ -100,7 +119,10 @@ void rand_init(dpu_input_t *dpu_input)
     free(rand_array);
 }
 
-void prepare_dpu()
+/**
+ * Prepare, start, and collect results from DPUs
+ */
+uint64_t start_dpu(int chosen_plugin, uint32_t per_dpu_memory_to_alloc, uint32_t buffer_size, uint64_t bench_time, dpu_runtime *rt)
 {
     struct dpu_set_t dpu_set, dpu;
     struct timespec start, end;
@@ -116,29 +138,32 @@ void prepare_dpu()
         dpu_input.tasklet_start_index[i] = i * dpu_input.tasklet_buffer_size;
     }
 
+    // Load the DPU binary executable and initialize the buffer
     if (chosen_plugin == 0)
     {
         DPU_ASSERT(dpu_load(dpu_set, SEQ_BINARY, NULL));
-        seq_init();
+        seq_init(buffer_size);
     }
     else
     {
         DPU_ASSERT(dpu_load(dpu_set, RAND_BINARY, NULL));
-        rand_init(&dpu_input);
+        rand_init(buffer_size, &dpu_input);
     }
 
+    // Copy inputs to the DPUs
     TIME_NOW(&start);
     DPU_ASSERT(dpu_copy_to(dpu_set, "buffer", 0, input_buffer, per_dpu_memory_to_alloc));
     DPU_ASSERT(dpu_copy_to(dpu_set, "input", 0, &dpu_input, sizeof(dpu_input_t)));
     TIME_NOW(&end);
 
-    float copy_in_time = TIME_DIFFERENCE(start, end);
+    rt->copy_in_time = TIME_DIFFERENCE(start, end);
 
+    // Start the benchmark
     TIME_NOW(&start);
     DPU_ASSERT(dpu_launch(dpu_set, DPU_SYNCHRONOUS));
     TIME_NOW(&end);
 
-    float benchmark_time = TIME_DIFFERENCE(start, end);
+    rt->benchmark_time = TIME_DIFFERENCE(start, end);
 
     // DPU_FOREACH(dpu_set, dpu)
     // {
@@ -148,6 +173,7 @@ void prepare_dpu()
     dpu_output_t results[NR_DPUS];
     uint32_t each_dpu;
 
+    // Copy results from the DPUs
     TIME_NOW(&start);
     DPU_FOREACH(dpu_set, dpu, each_dpu)
     {
@@ -156,7 +182,7 @@ void prepare_dpu()
     DPU_ASSERT(dpu_push_xfer(dpu_set, DPU_XFER_FROM_DPU, "results", 0, sizeof(dpu_output_t), DPU_XFER_DEFAULT));
     TIME_NOW(&end);
 
-    float copy_out_time = TIME_DIFFERENCE(start, end);
+    rt->copy_out_time = TIME_DIFFERENCE(start, end);
 
     uint64_t total_bytes_read = 0;
     DPU_FOREACH(dpu_set, dpu, each_dpu)
@@ -182,18 +208,14 @@ void prepare_dpu()
         total_bytes_read += bytes_read;
     }
 
-    float total_mbytes_read = total_bytes_read / 1024. / 1024.;
-    printf("Bench results\n");
-    printf("\t* Copy in took: %fs\n", copy_in_time);
-    printf("\t* Benchmarking took: %fs\n", benchmark_time);
-    printf("\t* Copy out took: %fs\n", copy_out_time);
-
-    printf("\t* Total bytes read: %lu bytes (%.2f MB)\n", total_bytes_read, total_mbytes_read);
-    printf("\t* Overall throughput: %.2f MB/s\n", total_mbytes_read / benchmark_time);
-
     DPU_ASSERT(dpu_free(dpu_set));
+
+    return total_bytes_read;
 }
 
+/**
+ * Helper function to parse user input memory size
+ */
 static uint64_t parse_size(char *size)
 {
     int length = strlen(size);
@@ -212,6 +234,9 @@ static uint64_t parse_size(char *size)
     return (uint64_t)atoi(size) * factor;
 }
 
+/**
+ * Helper function to display the proper usage of this program
+ */
 static void usage(char *app_name)
 {
     fprintf(stderr, "Usage: %s -t <plugin number> [ -l <size>[K|M]] [-T <time in seconds>]\n", app_name);
@@ -228,6 +253,12 @@ static void usage(char *app_name)
 
 int main(int argc, char **argv)
 {
+    int chosen_plugin = -1;
+
+    uint32_t per_dpu_memory_to_alloc = 0;
+    uint32_t buffer_size = 0;
+    uint64_t bench_time = DEFAULT_BENCH_TIME;
+
     int opt;
     char const options[] = "ht:g:T:";
     while ((opt = getopt(argc, argv, options)) != -1)
@@ -278,11 +309,20 @@ int main(int argc, char **argv)
     printf("\t* Num DPUs: %d\n", NR_DPUS);
     printf("\t* Num tasklets: %d\n", NR_TASKLETS);
     printf("\t* Chosen benchmark: %s\n", plugins[chosen_plugin].name);
-    printf("\t* Memory size to bench per DPU: %u bytes\n", per_dpu_memory_to_alloc);
-    printf("\t* Buffer size: %u\n", buffer_size);
+    printf("\t* Buffer size to bench per DPU: %u bytes (%.2f MB)\n", per_dpu_memory_to_alloc, per_dpu_memory_to_alloc / 1024. / 1024.);
     printf("\t* Benchmark time: %lus\n", (unsigned long)bench_time);
 
-    prepare_dpu();
+    dpu_runtime runtime;
+    uint64_t total_bytes_read = start_dpu(chosen_plugin, per_dpu_memory_to_alloc, buffer_size, bench_time, &runtime);
+
+    float total_mbytes_read = total_bytes_read / 1024. / 1024.;
+    printf("Bench results\n");
+    printf("\t* Copy in took: %fs\n", runtime.copy_in_time);
+    printf("\t* Benchmarking took: %fs\n", runtime.benchmark_time);
+    printf("\t* Copy out took: %fs\n", runtime.copy_out_time);
+
+    printf("\t* Total bytes read: %lu bytes (%.2f MB)\n", total_bytes_read, total_mbytes_read);
+    printf("\t* Overall throughput: %.2f MB/s\n", total_mbytes_read / runtime.benchmark_time);
 
     return EXIT_SUCCESS;
 }
