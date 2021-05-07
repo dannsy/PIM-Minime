@@ -14,6 +14,7 @@ __host dpu_output_t results;
 
 int main()
 {
+    __dma_aligned uint32_t cache[2];
     uint32_t tasklet_id = me();
     tasklet_output_t *result = &results.tasklet_result[tasklet_id];
 
@@ -36,6 +37,23 @@ int main()
         // unroll loop to have greater ratio of load instructions to branch instructions
         for (; buffer_i < buffer_size_per_tasket; buffer_i += UNROLL_SIZE)
         {
+            // mram_read(&buffer[index], cache, 8);
+            // index = cache[0];
+            // mram_read(&buffer[index], cache, 8);
+            // index = cache[0];
+            // mram_read(&buffer[index], cache, 8);
+            // index = cache[0];
+            // mram_read(&buffer[index], cache, 8);
+            // index = cache[0];
+            // mram_read(&buffer[index], cache, 8);
+            // index = cache[0];
+            // mram_read(&buffer[index], cache, 8);
+            // index = cache[0];
+            // mram_read(&buffer[index], cache, 8);
+            // index = cache[0];
+            // mram_read(&buffer[index], cache, 8);
+            // index = cache[0];
+
             index = buffer[index];
             index = buffer[index];
             index = buffer[index];
@@ -45,6 +63,7 @@ int main()
             index = buffer[index];
             index = buffer[index];
         }
+        printf("Last index: %u\n", index);
         nb_iterations++;
 
         cycles = perfcounter_get();

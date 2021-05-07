@@ -87,6 +87,7 @@ static int compar(const void *a1, const void *a2)
  */
 void rand_init(uint32_t buffer_size, dpu_input_t *dpu_input)
 {
+    buffer_size /= 2;
     int i;
     unsigned int seed = 1;
 
@@ -105,10 +106,10 @@ void rand_init(uint32_t buffer_size, dpu_input_t *dpu_input)
     int j = 1;
     for (i = 1; i < buffer_size; i++)
     {
-        input_buffer[index] = rand_array[i].i;
+        input_buffer[index] = rand_array[i].i * 2;
         index = input_buffer[index];
 
-        if (i % dpu_input->tasklet_buffer_size == 0 && j < NR_TASKLETS)
+        if ((i * 2) % dpu_input->tasklet_buffer_size == 0 && j < NR_TASKLETS)
         {
             dpu_input->tasklet_start_index[j] = index;
             j++;
