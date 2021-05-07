@@ -8,7 +8,7 @@
 
 #define BLOCK_SIZE 256
 #define UNROLL_SIZE 8
-#define CACHE 1
+// #define PREFETCH 1
 
 __dma_aligned uint32_t caches[NR_TASKLETS][BLOCK_SIZE];
 __host dpu_input_t input;
@@ -18,7 +18,7 @@ __mram_noinit uint32_t buffer[MAX_BUFFER_SIZE];
 int main()
 {
     uint32_t tasklet_id = me();
-#ifdef CACHE
+#ifdef PREFETCH
     uint32_t *cache = caches[tasklet_id];
 #endif
     tasklet_output_t *result = &results.tasklet_result[tasklet_id];
@@ -26,7 +26,7 @@ int main()
     uint32_t total_buffer_size = input.total_buffer_size;
     // This will only be *entirely accurate* if NR_TASKLETS is a power of 2
     uint32_t buffer_size_per_tasket = input.tasklet_buffer_size;
-    uint64_t max_cycles = input.max_cycles * CLOCKS_PER_SEC;
+    uint64_t max_cycles = input.bench_time * CLOCKS_PER_SEC;
 
     if (tasklet_id == 0)
     {
@@ -40,7 +40,7 @@ int main()
         uint32_t buffer_i = input.tasklet_start_index[tasklet_id];
         uint32_t end_i = buffer_i + buffer_size_per_tasket;
 
-#ifdef CACHE
+#ifdef PREFETCH
         for (; buffer_i < end_i; buffer_i += BLOCK_SIZE)
         {
             // read MRAM buffer to WRAM cache

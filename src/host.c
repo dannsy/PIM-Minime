@@ -46,8 +46,10 @@ typedef struct dpu_runtime
 } dpu_runtime;
 
 /**
- * Initialize the buffer for the sequential read plugin
- * Fill in all buffer elements with 0s
+ * Initialize the array for the sequential read plugin
+ * Fill in all array elements with 0
+ * 
+ * @param[in] buffer_size - The number of elements to fill in for the array
  */
 void seq_init(uint32_t buffer_size)
 {
@@ -58,7 +60,7 @@ void seq_init(uint32_t buffer_size)
 }
 
 /**
- * Helper struct for randomly sorting the buffer for random read
+ * Helper struct for randomly sorting the array for random read
  */
 struct ij
 {
@@ -79,10 +81,11 @@ static int compar(const void *a1, const void *a2)
 }
 
 /**
- * Initialize the buffer for the random read plugin
+ * Initialize the array for the random read plugin
  * Fill in buffer with pointer chasing elements
  * Each element should only be visited once for all tasklets combined
  * 
+ * @param[in] buffer_size - The number of elements to fill in for the array
  * @param[in] dpu_input - Inputs that will be copied to the DPUs. Fill in start_index array during pointer chasing
  */
 void rand_init(uint32_t buffer_size, dpu_input_t *dpu_input)
@@ -122,6 +125,12 @@ void rand_init(uint32_t buffer_size, dpu_input_t *dpu_input)
 
 /**
  * Prepare, start, and collect results from DPUs
+ * 
+ * @param[in] chosen_plugin - Which plugin the user chose. Either 0 for sequential_read or 1 for random_read
+ * @param[in] per_dpu_memory_to_alloc - The number of bytes to copy from input_buffer to DPU MRAM
+ * @param[in] buffer_size - The number of elements to initialize in input_buffer
+ * @param[in] bench_time - The number of seconds the benchmark should run for
+ * @param[in] rt - Execution time struct to record how long each operation of the DPU took
  */
 uint64_t start_dpu(int chosen_plugin, uint32_t per_dpu_memory_to_alloc, uint32_t buffer_size, uint64_t bench_time, dpu_runtime *rt)
 {
@@ -133,7 +142,7 @@ uint64_t start_dpu(int chosen_plugin, uint32_t per_dpu_memory_to_alloc, uint32_t
     dpu_input_t dpu_input;
     dpu_input.total_buffer_size = buffer_size;
     dpu_input.tasklet_buffer_size = buffer_size / NR_TASKLETS;
-    dpu_input.max_cycles = bench_time;
+    dpu_input.bench_time = bench_time;
     for (int i = 0; i < NR_TASKLETS; i++)
     {
         dpu_input.tasklet_start_index[i] = i * dpu_input.tasklet_buffer_size;
