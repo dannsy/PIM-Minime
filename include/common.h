@@ -2,7 +2,7 @@
 #define COMMON_H_
 
 /*
- * The maximum buffer size for each DPU is must be smaller than 64MB.
+ * The maximum array size for each DPU must be smaller than 64MB.
  * Each buffer element is 32 bits = 4 bytes, so if the buffer size is 32MB,
  * then the buffer needs 8 * 1024 * 1024 elements
  */
@@ -37,7 +37,7 @@ typedef struct
     uint32_t total_buffer_size;
     uint32_t tasklet_buffer_size;
     uint32_t tasklet_start_index[NR_TASKLETS];
-    uint64_t max_cycles;
+    uint64_t bench_time;
 } dpu_input_t;
 
 /*
