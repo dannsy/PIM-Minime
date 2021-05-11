@@ -6,3 +6,4 @@ venv
 host
 random_read
 sequential_read
+wram_transfer
