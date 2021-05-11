@@ -2,12 +2,11 @@
 #include <perfcounter.h>
 #include <mram.h>
 #include <defs.h>
-#include <barrier.h>
 
 #include "common.h"
 
 #define UNROLL_SIZE 8
-#define PREFETCH 1
+// #define PREFETCH 1
 
 __mram_noinit uint32_t buffer[MAX_BUFFER_SIZE];
 __host dpu_input_t input;
@@ -68,12 +67,12 @@ int main()
             index = buffer[index];
 #endif
         }
-        printf("Last index: %u\n", index);
         nb_iterations++;
 
         cycles = perfcounter_get();
         if (cycles > max_cycles)
         {
+            printf("Last index: %u\n", index);
             break;
         }
     }

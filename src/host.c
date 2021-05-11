@@ -15,6 +15,7 @@
 // MACROS containing path to DPU executables
 #define SEQ_BINARY "./dpu/sequential_read"
 #define RAND_BINARY "./dpu/random_read"
+#define TRANSFER_BINARY "./dpu/wram_transfer"
 
 // MACROS for helping with getting the execution time
 #define TIME_NOW(_t) (clock_gettime(CLOCK_MONOTONIC, (_t)))
@@ -29,6 +30,7 @@
 memory_bench_plugin_t plugins[] = {
     {"sequential_read"},
     {"random_read"},
+    {"wram_transfer"},
 };
 unsigned nb_plugins = sizeof(plugins) / sizeof(memory_bench_plugin_t);
 
@@ -55,7 +57,7 @@ void seq_init(uint32_t buffer_size)
 {
     for (int i = 0; i < buffer_size; i++)
     {
-        input_buffer[i] = (uint32_t)0;
+        input_buffer[i] = (uint32_t)(i % 4);
     }
 }
 
@@ -154,6 +156,10 @@ uint64_t start_dpu(int chosen_plugin, uint32_t per_dpu_memory_to_alloc, uint32_t
         DPU_ASSERT(dpu_load(dpu_set, SEQ_BINARY, NULL));
         seq_init(buffer_size);
     }
+    else if (chosen_plugin == 2) {
+        DPU_ASSERT(dpu_load(dpu_set, TRANSFER_BINARY, NULL));
+        seq_init(buffer_size);
+    }
     else
     {
         DPU_ASSERT(dpu_load(dpu_set, RAND_BINARY, NULL));
@@ -175,10 +181,10 @@ uint64_t start_dpu(int chosen_plugin, uint32_t per_dpu_memory_to_alloc, uint32_t
 
     rt->benchmark_time = TIME_DIFFERENCE(start, end);
 
-    // DPU_FOREACH(dpu_set, dpu)
-    // {
-    //     DPU_ASSERT(dpu_log_read(dpu, stdout));
-    // }
+    DPU_FOREACH(dpu_set, dpu)
+    {
+        DPU_ASSERT(dpu_log_read(dpu, stdout));
+    }
 
     dpu_output_t results[NR_DPUS];
     uint32_t each_dpu;
@@ -207,11 +213,11 @@ uint64_t start_dpu(int chosen_plugin, uint32_t per_dpu_memory_to_alloc, uint32_t
             cycles += result->cycles;
         }
 
-        // cycles /= NR_TASKLETS;
+        cycles /= NR_TASKLETS;
 
         // float mbytes_read = bytes_read / 1024. / 1024.;
         // printf("\nBytes read: %lu bytes (%.2f MB)\n", bytes_read, mbytes_read);
-        // printf("Average cycles per DPU: %lu cycles\n", cycles);
+        printf("Average cycles per DPU: %lu cycles\n", cycles);
         // printf("Time taken to run benchmark: %f seconds\n", time_diff);
         // printf("Throughput: %.2f MB/s\n", mbytes_read / time_diff);
 

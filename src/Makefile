@@ -13,7 +13,7 @@ OBJ=$(patsubst %,$(ODIR)/%,$(_OBJ))
 
 # Default
 NR_DPUS ?= 1
-NR_TASKLETS ?= 5
+NR_TASKLETS ?= 1
 CFLAGS+=-DNR_DPUS=$(NR_DPUS) -DNR_TASKLETS=$(NR_TASKLETS) -DHOST=1
 
 $(ODIR)/%.o: %.c  $(DEPS)
@@ -21,7 +21,7 @@ $(ODIR)/%.o: %.c  $(DEPS)
 
 host: $(OBJ)
 	$(CC) -o $@ $^ $(CFLAGS) $(DPU_OPTS)
-	NR_DPUS=$(NR_DPUS) NR_TASKLETS=$(NR_TASKLETS) \
+	NR_DPUS=$(NR_DPUS) NR_TASKLETS=$(NR_TASKLETS) BLOCK_SIZE=$(BLOCK_SIZE) \
 	$(MAKE) -C dpu
 
 .PHONY: clean

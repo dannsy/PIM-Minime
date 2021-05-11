@@ -2,13 +2,14 @@
 #include <perfcounter.h>
 #include <mram.h>
 #include <defs.h>
-#include <barrier.h>
 
 #include "common.h"
 
+#ifndef BLOCK_SIZE
 #define BLOCK_SIZE 256
+#endif
 #define UNROLL_SIZE 8
-// #define PREFETCH 1
+#define PREFETCH 1
 
 __dma_aligned uint32_t caches[NR_TASKLETS][BLOCK_SIZE];
 __host dpu_input_t input;
@@ -80,6 +81,7 @@ int main()
             break;
         }
     }
+    // printf("Read value: %u\n", read_val);
 
     result->cycles = perfcounter_get();
     result->bytes_read = nb_iterations * buffer_size_per_tasket * sizeof(uint32_t);

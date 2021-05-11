@@ -9,11 +9,14 @@ from datetime import datetime
 DEBUG = 0
 
 
-def make(num_dpus=1, num_tasklets=1, log=False):
+def make(num_dpus=1, num_tasklets=1, block_size=2, log=False):
     # Calling make clean and make with the right number of DPUs and tasklets
     command = [
-        f"make clean && make NR_DPUS={num_dpus} NR_TASKLETS={num_tasklets}",
+        f"make clean && make NR_DPUS={num_dpus} NR_TASKLETS={num_tasklets} BLOCK_SIZE={block_size}",
     ]
+    # command = [
+    #     f"make clean && make NR_DPUS={num_dpus} NR_TASKLETS={num_tasklets}",
+    # ]
     if DEBUG:
         print(f"Command being executed: {command}")
 
@@ -21,19 +24,42 @@ def make(num_dpus=1, num_tasklets=1, log=False):
 
 
 def execute(mode, total_mem="32M", bench_time=10):
-    command = [f"./host -t {mode} -g {total_mem} -T {bench_time}"]
-    subprocess.run(command, shell=True)
+    cycle_str = "Average cycles per DPU: "
+    throughput_str = "Overall throughput: "
+
+    # command = [f"./host -t {mode} -g {total_mem} -T {bench_time}"]
+    command = ["./host", "-t", f"{mode}", "-g", f"{total_mem}", "-T", f"{bench_time}"]
+    completed_process = subprocess.run(command, capture_output=True)
+    stdout_str = completed_process.stdout.decode("utf-8")
+
+    start_index = stdout_str.find(cycle_str) + len(cycle_str)
+    end_index = stdout_str[start_index:].find("\n")
+    cycles = stdout_str[start_index:start_index + end_index]
+
+    start_index = stdout_str.find(throughput_str) + len(throughput_str)
+    end_index = stdout_str[start_index:].find("\n")
+    throughput = stdout_str[start_index:start_index + end_index]
+    # print(f"{cycles}, {throughput}")
+    print(stdout_str)
 
 
 def benchmark(num_dpus, mode):
     # The number of tasklets to benchmark with
-    tasklets_list = [1, 2, 4, 8, 12, 16, 24]
+    # tasklets_list = [1, 2, 4, 8, 12, 16, 24]
+    tasklets_list = [1]
+    block_sizes = [2, 4, 8, 16, 32, 64, 128, 256, 512]
+    # block_sizes = [8, 16, 32, 64, 128, 256, 512]
 
     stars = "*" * 28
     for num in tasklets_list:
-        print(f"\n{stars} Benchmark with {num_dpus} DPUs and {num} tasklets {stars}\n")
-        make(num_dpus, num)
-        execute(mode, bench_time=0)
+        for block_size in block_sizes:
+            print(f"\n{stars} Benchmark with {num_dpus} DPUs and {num} tasklets block size {block_size} {stars}\n")
+            make(num_dpus, num, block_size)
+            execute(mode, bench_time=0)
+
+        # print(f"\n{stars} Benchmark with {num_dpus} DPUs and {num} tasklets {stars}\n")
+        # make(num_dpus, num, 16)
+        # execute(mode, bench_time=0)
 
 
 if __name__ == "__main__":
@@ -44,14 +70,14 @@ if __name__ == "__main__":
     os.chdir(os.path.join("..", "src"))
 
     # Getting user input
-    num_dpus = int(input("Number of DPUs: "))
-    mode = input("Choose mode (0: sequential read, 1: random read): ")
+    # num_dpus = int(input("Number of DPUs: "))
+    # mode = input("Choose mode (0: sequential read, 1: random read, 2: wram_transfer): ")
     # bench_time = int(input("Benchmark time: "))
 
     start_stars = "*" * 30
     end_stars = "*" * 32
     print(f"\n{start_stars} Starting benchmark for Minime {start_stars}\n")
 
-    benchmark(num_dpus, mode)
+    benchmark(1, 2)
 
     print(f"\n{end_stars} Done benchmark for Minime {end_stars}")
