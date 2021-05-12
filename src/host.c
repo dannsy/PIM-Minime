@@ -28,9 +28,9 @@
 
 // Benchmark options constants
 memory_bench_plugin_t plugins[] = {
+    {"wram_transfer"},
     {"sequential_read"},
     {"random_read"},
-    {"wram_transfer"},
 };
 unsigned nb_plugins = sizeof(plugins) / sizeof(memory_bench_plugin_t);
 
@@ -150,20 +150,27 @@ uint64_t start_dpu(int chosen_plugin, uint32_t per_dpu_memory_to_alloc, uint32_t
         dpu_input.tasklet_start_index[i] = i * dpu_input.tasklet_buffer_size;
     }
 
-    // Load the DPU binary executable and initialize the buffer
-    if (chosen_plugin == 0)
+    // Load the DPU binary executable and initialize the buffer depending on chosen plugin
+    switch (chosen_plugin)
     {
-        DPU_ASSERT(dpu_load(dpu_set, SEQ_BINARY, NULL));
-        seq_init(buffer_size);
-    }
-    else if (chosen_plugin == 2) {
+    case (0):
+        // mram transfer
         DPU_ASSERT(dpu_load(dpu_set, TRANSFER_BINARY, NULL));
         seq_init(buffer_size);
-    }
-    else
-    {
+        break;
+    case (1):
+        // sequential read
+        DPU_ASSERT(dpu_load(dpu_set, SEQ_BINARY, NULL));
+        seq_init(buffer_size);
+        break;
+    case (2):
+        // random read
         DPU_ASSERT(dpu_load(dpu_set, RAND_BINARY, NULL));
         rand_init(buffer_size, &dpu_input);
+        break;
+    default:
+        fprintf(stderr, "Unexpected error\n");
+        return EXIT_FAILURE;
     }
 
     // Copy inputs to the DPUs
@@ -211,13 +218,19 @@ uint64_t start_dpu(int chosen_plugin, uint32_t per_dpu_memory_to_alloc, uint32_t
 
             bytes_read += result->bytes_read;
             cycles += result->cycles;
+
+            if (chosen_plugin == 0)
+            {
+                printf("Transfer size: %u, mram_read cycles: %lu, mram_write cycles: %lu\n",
+                       result->transfer_size, result->read_cycles, result->write_cycles);
+            }
         }
 
         cycles /= NR_TASKLETS;
 
         // float mbytes_read = bytes_read / 1024. / 1024.;
         // printf("\nBytes read: %lu bytes (%.2f MB)\n", bytes_read, mbytes_read);
-        printf("Average cycles per DPU: %lu cycles\n", cycles);
+        // printf("Average cycles per DPU: %lu cycles\n", cycles);
         // printf("Time taken to run benchmark: %f seconds\n", time_diff);
         // printf("Throughput: %.2f MB/s\n", mbytes_read / time_diff);
 

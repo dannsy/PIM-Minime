@@ -45,11 +45,18 @@ typedef struct
  * 
  * @var bytes_read - The total number of bytes read by a tasklet
  * @var cycles - The total number of cycles used to execute the benchmark for a tasklet
+ * @var transfer_size - The total number of bytes transferred in mram_read and mram_write
+ * @var read_cycles - The number of cycles needed to call mram_read with transfer_size bytes
+ * @var write_cycles - The number of cycles needed to call mram_write with transfer_size bytes
  */
 typedef struct
 {
     uint64_t bytes_read;
     uint64_t cycles;
+
+    uint32_t transfer_size;
+    uint64_t read_cycles;
+    uint64_t write_cycles;
 } tasklet_output_t;
 
 /*

@@ -29,7 +29,7 @@ int main()
     {
         perfcounter_config(COUNT_CYCLES, true);
     }
-    uint64_t transfer_cycles = 0;
+    uint64_t read_transfer_cycles = 0, write_transfer_cycles = 0;
     uint64_t start_cycle, end_cycle;
 
     uint32_t buffer_i = input.tasklet_start_index[tasklet_id];
@@ -38,13 +38,20 @@ int main()
     __mram_ptr void *buffer_addr = (__mram_ptr void *)&buffer;
     uint32_t transfer_size = BLOCK_SIZE * sizeof(uint32_t);
     start_cycle = perfcounter_get();
-    // read MRAM buffer to WRAM cache
+    // read MRAM buffer to WRAM buffer
     mram_read(buffer_addr, cache, transfer_size);
     end_cycle = perfcounter_get();
-    transfer_cycles = end_cycle - start_cycle;
+    read_transfer_cycles = end_cycle - start_cycle;
 
-    printf("Transfer cycles: %lu, transfer size: %lu bytes\n", transfer_cycles, transfer_size);
-    printf("Sum value: %u\n", sum);
+    start_cycle = perfcounter_get();
+    // write WRAM buffer to MRAM buffer
+    mram_write(cache, buffer_addr, transfer_size);
+    end_cycle = perfcounter_get();
+    write_transfer_cycles = end_cycle - start_cycle;
+
+    result->transfer_size = transfer_size;
+    result->read_cycles = read_transfer_cycles;
+    result->write_cycles = write_transfer_cycles;
 
     result->cycles = perfcounter_get();
     result->bytes_read = buffer_size_per_tasklet * sizeof(uint32_t);
