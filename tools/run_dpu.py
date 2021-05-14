@@ -18,7 +18,7 @@ def make(num_dpus=1, num_tasklets=1, block_size=2, log=False):
     if DEBUG:
         print(f"Command being executed: {command}")
 
-    subprocess.run(command, shell=True, capture_output=not log)
+    subprocess.run(command, shell=True, capture_output=log)
 
 
 def execute(mode, total_mem="32M", bench_time=10):
@@ -42,10 +42,15 @@ def execute(mode, total_mem="32M", bench_time=10):
 
 
 def benchmark(mode, num_dpus, bench_time):
-    # The number of tasklets to benchmark with
-    # tasklets_list = [1, 2, 4, 8, 12, 16, 24]
-    tasklets_list = [1]
-    block_sizes = [2, 4, 8, 16, 32, 64, 128, 256, 512]
+    # The number of tasklets and transfer_size to benchmark with
+    tasklets_list = [1, 2, 4, 8, 16]
+    if mode == 0:
+        tasklets_list = [1]
+        block_sizes = [8, 16, 32, 64, 128, 256, 512, 768, 1024, 1280, 1536, 1792, 2048]
+    elif mode == 1:
+        block_sizes = [1024]
+    else:
+        block_sizes = [8]
 
     stars = "*" * 28
     for num in tasklets_list:

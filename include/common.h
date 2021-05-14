@@ -6,7 +6,7 @@
  * Each buffer element is 32 bits = 4 bytes, so if the buffer size is 32MB,
  * then the buffer needs 8 * 1024 * 1024 elements
  */
-#define MAX_BUFFER_SIZE 8 * 1024 * 1024
+#define MAX_BUFFER_SIZE 32 * 1024 * 1024
 
 /*
  * NR_DPUS and NR_TASKLETS definitions are here mainly for getting rid of "undefined" errors

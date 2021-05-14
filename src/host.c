@@ -35,7 +35,7 @@ memory_bench_plugin_t plugins[] = {
 unsigned nb_plugins = sizeof(plugins) / sizeof(memory_bench_plugin_t);
 
 // Buffer to copy into DPUs, each element is 4 bytes
-static uint32_t input_buffer[MAX_BUFFER_SIZE];
+static uint8_t input_buffer[MAX_BUFFER_SIZE];
 
 /**
  * DPU runtime struct containing execution time for various operations
@@ -57,7 +57,7 @@ void seq_init(uint32_t buffer_size)
 {
     for (int i = 0; i < buffer_size; i++)
     {
-        input_buffer[i] = (uint32_t)(i % 4);
+        input_buffer[i] = (uint8_t)0;
     }
 }
 
@@ -150,6 +150,9 @@ uint64_t start_dpu(int chosen_plugin, uint32_t per_dpu_memory_to_alloc, uint32_t
         dpu_input.tasklet_start_index[i] = i * dpu_input.tasklet_buffer_size;
     }
 
+    printf("Buffer size: %u\n", dpu_input.total_buffer_size);
+    printf("Tasklet buffer size: %u\n", dpu_input.tasklet_buffer_size);
+
     // Load the DPU binary executable and initialize the buffer depending on chosen plugin
     switch (chosen_plugin)
     {
@@ -230,7 +233,7 @@ uint64_t start_dpu(int chosen_plugin, uint32_t per_dpu_memory_to_alloc, uint32_t
 
         // float mbytes_read = bytes_read / 1024. / 1024.;
         // printf("\nBytes read: %lu bytes (%.2f MB)\n", bytes_read, mbytes_read);
-        // printf("Average cycles per DPU: %lu cycles\n", cycles);
+        printf("Average cycles per DPU: %lu cycles\n", cycles);
         // printf("Time taken to run benchmark: %f seconds\n", time_diff);
         // printf("Throughput: %.2f MB/s\n", mbytes_read / time_diff);
 
@@ -332,7 +335,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "Memory to allocate per DPU invalid, falling back to default memory size of 32MB\n");
         per_dpu_memory_to_alloc = DEFAULT_MEMORY_BENCH_SIZE_TO_BENCH;
     }
-    buffer_size = per_dpu_memory_to_alloc / sizeof(uint32_t);
+    buffer_size = per_dpu_memory_to_alloc;
 
     printf("Bench parameters\n");
     printf("\t* Num DPUs: %d\n", NR_DPUS);
